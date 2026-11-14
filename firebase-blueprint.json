@@ -1,0 +1,168 @@
+{
+  "entities": {
+    "UserPublicProfile": {
+      "title": "UserPublicProfile",
+      "description": "Public social profile metadata stored in Firestore without any PII.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth UID of the profile owner.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "name": {
+          "type": "string",
+          "description": "Display name in English.",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "nameBn": {
+          "type": "string",
+          "description": "Display name in Bengali.",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "username": {
+          "type": "string",
+          "description": "Public handle.",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "avatar": {
+          "type": "string",
+          "description": "Avatar image URL.",
+          "minLength": 1,
+          "maxLength": 2048
+        },
+        "bio": {
+          "type": "string",
+          "description": "Short user bio.",
+          "maxLength": 500
+        },
+        "city": {
+          "type": "string",
+          "description": "City/location label.",
+          "maxLength": 120
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp."
+        }
+      },
+      "required": ["uid", "name", "username", "avatar", "createdAt", "updatedAt"]
+    },
+    "UserPrivateInfo": {
+      "title": "UserPrivateInfo",
+      "description": "Strictly isolated PII document readable only by the owner.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Owner Firebase UID.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Verified user email address.",
+          "minLength": 3,
+          "maxLength": 254
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp."
+        }
+      },
+      "required": ["uid", "email", "updatedAt"]
+    },
+    "CloudPost": {
+      "title": "CloudPost",
+      "description": "Social feed post synced to Firestore, optionally linked to a Google Drive file.",
+      "type": "object",
+      "properties": {
+        "authorId": {
+          "type": "string",
+          "description": "Firebase Auth UID of the post creator.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "authorName": {
+          "type": "string",
+          "description": "Display name of the post creator.",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "authorAvatar": {
+          "type": "string",
+          "description": "Avatar URL of the post creator.",
+          "minLength": 1,
+          "maxLength": 2048
+        },
+        "content": {
+          "type": "string",
+          "description": "Post text content.",
+          "minLength": 1,
+          "maxLength": 5000
+        },
+        "privacy": {
+          "type": "string",
+          "description": "Visibility setting for the post.",
+          "enum": ["public", "friends", "only_me"],
+          "maxLength": 20
+        },
+        "driveFileId": {
+          "type": "string",
+          "description": "Optional attached Google Drive file ID.",
+          "maxLength": 128
+        },
+        "driveFileName": {
+          "type": "string",
+          "description": "Optional attached Google Drive file name.",
+          "maxLength": 256
+        },
+        "driveWebViewLink": {
+          "type": "string",
+          "description": "Optional Google Drive webViewLink URL.",
+          "maxLength": 2048
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server update timestamp."
+        }
+      },
+      "required": ["authorId", "authorName", "authorAvatar", "content", "privacy", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserPublicProfile" },
+      "description": "Public profile records without PII."
+    },
+    "/users/{userId}/private/{docId}": {
+      "schema": { "$ref": "#/entities/UserPrivateInfo" },
+      "description": "Owner-only isolated PII collection."
+    },
+    "/cloudPosts/{postId}": {
+      "schema": { "$ref": "#/entities/CloudPost" },
+      "description": "Cloud-synced posts and Google Drive shared items."
+    }
+  }
+}

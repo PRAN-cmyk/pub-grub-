@@ -1,0 +1,32 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Chat voice notes and attachments
+    match /chats/{chatId}/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+                   && request.resource.size < 25 * 1024 * 1024; // 25MB max
+    }
+
+    // User media uploads (avatars, covers, post media)
+    match /users/{userId}/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+                   && request.auth.uid == userId
+                   && request.resource.size < 50 * 1024 * 1024; // 50MB max
+    }
+
+    // General media attachments for authenticated users
+    match /media/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+                   && request.resource.size < 50 * 1024 * 1024;
+    }
+
+    // Default deny for all other paths
+    match /{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.resource.size < 25 * 1024 * 1024;
+    }
+  }
+}

@@ -1,0 +1,188 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // --- Hardened Global Primitives ---
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // --- Entity Validation Blueprints ---
+    function isValidUserPublicProfile(data) {
+      return data.keys().hasAll(['uid', 'name', 'username', 'avatar', 'createdAt', 'updatedAt'])
+        && data.uid == request.auth.uid
+        && data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 120
+        && data.username is string && data.username.size() >= 1 && data.username.size() <= 80
+        && data.avatar is string && data.avatar.size() >= 1 && data.avatar.size() <= 2048;
+    }
+
+    function isValidUserPrivateInfo(data) {
+      return data.keys().hasAll(['uid', 'email', 'updatedAt'])
+        && data.uid == request.auth.uid
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 254;
+    }
+
+    // --- Collection: /users/{userId} (Public Profile) ---
+    match /users/{userId} {
+      allow get, list: if isSignedIn();
+
+      allow create: if isSignedIn()
+        && isValidId(userId)
+        && userId == request.auth.uid
+        && isValidUserPublicProfile(incoming());
+
+      allow update: if isSignedIn()
+        && isValidId(userId)
+        && userId == request.auth.uid;
+
+      allow delete: if isSignedIn()
+        && isValidId(userId)
+        && userId == request.auth.uid;
+
+      // --- Subcollection: /users/{userId}/private/{docId} ---
+      match /private/{docId} {
+        allow get: if isSignedIn()
+          && isValidId(userId)
+          && userId == request.auth.uid;
+
+        allow create, update, delete: if isSignedIn()
+          && isValidId(userId)
+          && userId == request.auth.uid
+          && isValidUserPrivateInfo(incoming());
+      }
+    }
+
+    // --- Collection: /cloudPosts/{postId} ---
+    match /cloudPosts/{postId} {
+      allow get, list: if isSignedIn();
+
+      allow create: if isSignedIn()
+        && isValidId(postId)
+        && incoming().authorId == request.auth.uid;
+
+      allow update: if isSignedIn()
+        && isValidId(postId)
+        && (existing().authorId == request.auth.uid ||
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions', 'reactionsCount', 'comments', 'commentsCount', 'sharesCount', 'userReactions', 'updatedAt']));
+
+      allow delete: if isSignedIn()
+        && isValidId(postId)
+        && existing().authorId == request.auth.uid;
+    }
+
+    // --- Collection: /cloudAlbums/{albumId} (Photo Albums) ---
+    match /cloudAlbums/{albumId} {
+      allow get, list: if isSignedIn();
+
+      allow create: if isSignedIn()
+        && isValidId(albumId)
+        && incoming().userId == request.auth.uid;
+
+      allow update: if isSignedIn()
+        && isValidId(albumId)
+        && existing().userId == request.auth.uid;
+
+      allow delete: if isSignedIn()
+        && isValidId(albumId)
+        && existing().userId == request.auth.uid;
+    }
+
+    // --- Collection: /cloudStories/{storyId} (24-Hour Stories) ---
+    match /cloudStories/{storyId} {
+      allow get, list: if isSignedIn() && isValidId(storyId);
+
+      allow create: if isSignedIn()
+        && isValidId(storyId)
+        && incoming().authorId == request.auth.uid;
+
+      allow update: if isSignedIn()
+        && isValidId(storyId)
+        && (existing().authorId == request.auth.uid ||
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions', 'reactionUsers', 'userReactions']));
+
+      allow delete: if isSignedIn()
+        && isValidId(storyId)
+        && existing().authorId == request.auth.uid;
+    }
+
+    // --- Collection: /cloudReels/{reelId} (Video Reels) ---
+    match /cloudReels/{reelId} {
+      allow get, list: if isSignedIn();
+
+      allow create: if isSignedIn()
+        && isValidId(reelId)
+        && incoming().authorId == request.auth.uid;
+
+      allow update: if isSignedIn()
+        && isValidId(reelId)
+        && (existing().authorId == request.auth.uid ||
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likesCount', 'likedUserIds', 'viewsCount', 'sharesCount', 'commentsCount', 'comments', 'reactions', 'userReactions']));
+
+      allow delete: if isSignedIn()
+        && isValidId(reelId)
+        && existing().authorId == request.auth.uid;
+    }
+
+    // --- Collection: /cloudChats/{chatId} ---
+    match /cloudChats/{chatId} {
+      allow read, write: if isSignedIn();
+
+      // Messages in chat
+      match /messages/{msgId} {
+        allow read: if isSignedIn();
+
+        allow create: if isSignedIn()
+          && incoming().senderId == request.auth.uid;
+
+        // Allow sender to edit/delete, or recipient to update seen status
+        allow update: if isSignedIn()
+          && (existing().senderId == request.auth.uid ||
+              request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead', 'seenAt', 'seenBy']));
+
+        allow delete: if isSignedIn()
+          && existing().senderId == request.auth.uid;
+      }
+
+      // Typing indicators in chat
+      match /typing/{userId} {
+        allow read: if isSignedIn();
+        allow write: if isSignedIn() && userId == request.auth.uid;
+      }
+    }
+
+    // --- Collection: /cloudCalls/{callId} (WebRTC Signaling) ---
+    match /cloudCalls/{callId} {
+      allow read, write: if isSignedIn() && isValidId(callId);
+
+      match /candidates/{candId} {
+        allow read, write: if isSignedIn();
+      }
+    }
+
+    // --- Collection: /cloudNotes/{noteId} (Google Keep Notes) ---
+    match /cloudNotes/{noteId} {
+      allow get, list: if isSignedIn() && (resource == null || resource.data.userId == request.auth.uid);
+
+      allow create: if isSignedIn()
+        && isValidId(noteId)
+        && incoming().userId == request.auth.uid;
+
+      allow update, delete: if isSignedIn()
+        && isValidId(noteId)
+        && existing().userId == request.auth.uid;
+    }
+  }
+}

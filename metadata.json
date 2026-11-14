@@ -1,0 +1,6 @@
+{
+  "name": "Bandhan - Social Network",
+  "description": "A modern, full-featured Facebook-style social networking web platform with newsfeed, stories, reactions, messenger chat, reels, groups, and marketplace.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
